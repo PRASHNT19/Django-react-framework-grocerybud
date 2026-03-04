@@ -1,62 +1,141 @@
 import { useEffect, useState } from "react";
 
-const BASE_URL = "http://127.0.0.1:8000/api/grocery";
+const BASE_URL = "http://127.0.0.1:8000/api/grocery/";
 
 function App() {
   const [items, setItems] = useState([]);
   const [name, setName] = useState("");
+  const [editId, setEditId] = useState(null);
 
   useEffect(() => {
-    fetch(BASE_URL)
-      .then((r) => r.json())
-      .then(setItems);
+    refreshItems();
   }, []);
 
-  const addItem = async () => {
-    const res = await fetch(BASE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    const data = await res.json();
-    setItems([...items, data]);
-    setName("");
+  const refreshItems = async () => {
+    try {
+      const res = await fetch(BASE_URL);
+      if (!res.ok) throw new Error("Server error");
+      const data = await res.json();
+      setItems(data);
+    } catch (err) {
+      console.error("Connection Refused! Is Django running?");
+    }
   };
 
-  const toggle = async (id) => {
-    const res = await fetch(`${BASE_URL}/${id}/toggle/`, { method: "POST" });
-    const updated = await res.json();
-    setItems(items.map((i) => (i.id === id ? updated : i)));
-  };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
 
-  const remove = async (id) => {
-    await fetch(`${BASE_URL}/${id}/`, { method: "DELETE" });
-    setItems(items.filter((i) => i.id !== id));
+    const url = editId ? `${BASE_URL}${editId}/` : BASE_URL;
+    const method = editId ? "PATCH" : "POST";
+
+    try {
+      await fetch(url, {
+        method: method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      setName("");
+      setEditId(null);
+      refreshItems();
+    } catch (err) {
+      console.error("Submit failed. Check server.");
+    }
   };
 
   return (
-    <div style={{ padding: 40 }}>
-      <h2>Grocery Bud</h2>
+    <div style={styles.page}>
+      <div style={styles.container}>
+        <h2 style={styles.title}>Grocery Bud</h2>
 
-      <input value={name} onChange={(e) => setName(e.target.value)} />
-      <button onClick={addItem}>Add</button>
+        <form onSubmit={handleSubmit} style={styles.form}>
+          <input
+            style={styles.input}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. apple"
+          />
+          <button type="submit" style={styles.btn}>
+            {editId ? "Edit" : "Add"}
+          </button>
+        </form>
 
-      {items.map((item) => (
-        <div key={item.id}>
-          <span
-            onClick={() => toggle(item.id)}
-            style={{
-              textDecoration: item.completed ? "line-through" : "none",
-              cursor: "pointer",
-            }}
-          >
-            {item.name}
-          </span>
-          <button onClick={() => remove(item.id)}>Delete</button>
+        <div style={styles.list}>
+          {items.map((item) => (
+            <div key={item.id} style={styles.itemRow}>
+              <span style={styles.text}>{item.name}</span>
+              <button
+                onClick={() => {
+                  setName(item.name);
+                  setEditId(item.id);
+                }}
+                style={styles.btn}
+              >
+                Edit
+              </button>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
     </div>
   );
 }
+
+const styles = {
+  page: {
+    backgroundColor: "#1a1a1a",
+    minHeight: "100vh",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center", // Centers vertically
+    alignItems: "center", // Centers horizontally
+    padding: "20px", // Added for mobile spacing
+  },
+  container: {
+    width: "100%",
+    maxWidth: "400px",
+    textAlign: "center",
+  },
+  title: {
+    color: "#ffffff",
+    marginBottom: "20px",
+  },
+  form: {
+    display: "flex",
+    gap: "10px",
+    marginBottom: "30px",
+  },
+  input: {
+    flex: 5,
+    padding: "10px",
+    backgroundColor: "black",
+    color: "#ffffff",
+    border: "1px solid #ff0000",
+    borderRadius: "4px",
+  },
+  btn: {
+    padding: "10px 20px",
+    backgroundColor: "red",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontWeight: "bold",
+  },
+  list: {
+    textAlign: "center",
+  },
+  itemRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "10px",
+    borderBottom: "1px solid #444",
+  },
+  text: {
+    color: "#ffffff",
+    fontSize: "18px",
+  },
+};
 
 export default App;
