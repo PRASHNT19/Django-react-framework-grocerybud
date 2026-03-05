@@ -6,6 +6,20 @@ function App() {
   const [items, setItems] = useState([]);
   const [name, setName] = useState("");
   const [editId, setEditId] = useState(null);
+  const [alert, setAlert] = useState({ show: false, msg: "", type: "" });
+
+  // Helper to show the alert
+  const showAlert = (show = false, type = "", msg = "") => {
+    setAlert({ show, type, msg });
+  };
+
+  // Automatically hide alert after 3 seconds
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      showAlert();
+    }, 3000);
+    return () => clearTimeout(timeout);
+  }, [alert.show]);
 
   useEffect(() => {
     refreshItems();
@@ -24,28 +38,62 @@ function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      showAlert(true, "danger", "Please enter a value");
+      return;
+    }
 
     const url = editId ? `${BASE_URL}${editId}/` : BASE_URL;
     const method = editId ? "PATCH" : "POST";
 
     try {
-      await fetch(url, {
+      const res = await fetch(url, {
         method: method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
       });
+
+      if (!res.ok) throw new Error("Submit failed");
+
+      showAlert(true, "success", editId ? "Item Edited" : "Item Added");
       setName("");
       setEditId(null);
       refreshItems();
     } catch (err) {
-      console.error("Submit failed. Check server.");
+      showAlert(true, "danger", "Submit failed. Check server.");
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      const res = await fetch(`${BASE_URL}${id}/`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("Delete failed");
+
+      showAlert(true, "danger", "Item Deleted");
+      refreshItems();
+
+      if (editId === id) {
+        setName("");
+        setEditId(null);
+      }
+    } catch (err) {
+      showAlert(true, "danger", "Could not delete item.");
     }
   };
 
   return (
     <div style={styles.page}>
       <div style={styles.container}>
+        {/* Notification Pop-up */}
+        {alert.show && (
+          <div style={{ ...styles.alert, ...styles[alert.type] }}>
+            {alert.msg}
+          </div>
+        )}
+
         <h2 style={styles.title}>Grocery Bud</h2>
 
         <form onSubmit={handleSubmit} style={styles.form}>
@@ -55,7 +103,7 @@ function App() {
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. apple"
           />
-          <button type="submit" style={styles.btn}>
+          <button type="submit" style={styles.submitBtn}>
             {editId ? "Edit" : "Add"}
           </button>
         </form>
@@ -64,15 +112,23 @@ function App() {
           {items.map((item) => (
             <div key={item.id} style={styles.itemRow}>
               <span style={styles.text}>{item.name}</span>
-              <button
-                onClick={() => {
-                  setName(item.name);
-                  setEditId(item.id);
-                }}
-                style={styles.btn}
-              >
-                Edit
-              </button>
+              <div style={styles.btnGroup}>
+                <button
+                  onClick={() => {
+                    setName(item.name);
+                    setEditId(item.id);
+                  }}
+                  style={styles.editBtn}
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(item.id)}
+                  style={styles.deleteBtn}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -87,18 +143,41 @@ const styles = {
     minHeight: "100vh",
     display: "flex",
     flexDirection: "column",
-    justifyContent: "center", // Centers vertically
-    alignItems: "center", // Centers horizontally
-    padding: "20px", // Added for mobile spacing
+    justifyContent: "center",
+    alignItems: "center",
+    padding: "20px",
   },
   container: {
     width: "100%",
-    maxWidth: "400px",
+    maxWidth: "450px",
     textAlign: "center",
+    position: "relative",
+  },
+  alert: {
+    marginBottom: "1rem",
+    height: "1.25rem",
+    display: "grid",
+    alignItems: "center",
+    textAlign: "center",
+    fontSize: "0.85rem",
+    borderRadius: "0.25rem",
+    letterSpacing: "2px",
+    textTransform: "capitalize",
+    padding: "10px",
+  },
+  success: {
+    color: "#155724",
+    backgroundColor: "#d4edda",
+  },
+  danger: {
+    color: "#721c24",
+    backgroundColor: "#f8d7da",
   },
   title: {
     color: "#ffffff",
     marginBottom: "20px",
+    fontSize: "2rem",
+    letterSpacing: "2px",
   },
   form: {
     display: "flex",
@@ -106,16 +185,17 @@ const styles = {
     marginBottom: "30px",
   },
   input: {
-    flex: 5,
-    padding: "10px",
-    backgroundColor: "black",
+    flex: 1,
+    padding: "12px",
+    backgroundColor: "#000000",
     color: "#ffffff",
     border: "1px solid #ff0000",
     borderRadius: "4px",
+    outline: "none",
   },
-  btn: {
+  submitBtn: {
     padding: "10px 20px",
-    backgroundColor: "red",
+    backgroundColor: "#ff0000",
     color: "#ffffff",
     border: "none",
     borderRadius: "4px",
@@ -123,18 +203,41 @@ const styles = {
     fontWeight: "bold",
   },
   list: {
-    textAlign: "center",
+    width: "100%",
   },
   itemRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "10px",
-    borderBottom: "1px solid #444",
+    padding: "12px 10px",
+    borderBottom: "1px solid #333",
   },
   text: {
     color: "#ffffff",
     fontSize: "18px",
+    textTransform: "capitalize",
+  },
+  btnGroup: {
+    display: "flex",
+    gap: "8px",
+  },
+  editBtn: {
+    padding: "5px 10px",
+    backgroundColor: "#27ae60",
+    color: "white",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "12px",
+  },
+  deleteBtn: {
+    padding: "5px 10px",
+    backgroundColor: "#c0392b",
+    color: "white",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "12px",
   },
 };
 
